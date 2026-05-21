@@ -14,7 +14,7 @@ class DetalleProductoScreen extends StatefulWidget {
 
 class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
   DateTimeRange? fechasRenta;
-  final String serverIp = "localhost"; 
+  final String baseUrl = "https://api-rentify-production.up.railway.app"; 
 
   Future<void> _seleccionarFechas() async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -34,7 +34,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
 
   // NUEVA FUNCIÓN: Agregar al Carrito (Sincronizado con Web/Angular)
   Future<void> _agregarAlCarrito() async {
-    final url = Uri.parse("http://$serverIp:8080/api/detalles-carrito/agregar");
+    final url = Uri.parse("$baseUrl/api/v1/detalles-carrito/agregar");
     
     // 1. Obtenemos el ID del usuario que guardamos en el Login
     final prefs = await SharedPreferences.getInstance();
@@ -98,7 +98,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
 
     String imagePath = widget.producto.imagenUrl;
     if (!imagePath.startsWith('/')) imagePath = '/$imagePath';
-    final String fullImageUrl = "http://$serverIp:8080$imagePath";
+    final String fullImageUrl = "$baseUrl$imagePath";
 
     return Scaffold(
       appBar: AppBar(title: Text(widget.producto.nombre)),

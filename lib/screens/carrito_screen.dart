@@ -11,7 +11,7 @@ class CarritoScreen extends StatefulWidget {
 }
 
 class _CarritoScreenState extends State<CarritoScreen> {
-  final String serverIp = "localhost"; 
+  final String baseUrl = "https://api-rentify-production.up.railway.app/api/v1"; 
   bool _isLoading = true;
   bool _isProcessingCheckout = false;
   
@@ -35,7 +35,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
       return;
     }
 
-    final url = Uri.parse("http://$serverIp:8080/api/detalles-carrito/carrito/$usuarioId");
+    final url = Uri.parse("$baseUrl/detalles-carrito/carrito/$usuarioId");
 
     try {
       final response = await http.get(url);
@@ -65,7 +65,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
 
   // Eliminar producto del carrito personal
   Future<void> _eliminarDelCarrito(int idDetalleCarrito) async {
-    final url = Uri.parse("http://$serverIp:8080/api/detalles-carrito/$idDetalleCarrito");
+    final url = Uri.parse("$baseUrl/detalles-carrito/$idDetalleCarrito");
 
     try {
       final response = await http.delete(url);
@@ -98,7 +98,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
     final prefs = await SharedPreferences.getInstance();
     final int? usuarioId = prefs.getInt('usuario_id');
 
-    final urlRentas = Uri.parse("http://$serverIp:8080/api/rentas");
+    final urlRentas = Uri.parse("$baseUrl/rentas");
 
     final List<Map<String, dynamic>> detallesRenta = _detalles.map((item) {
       return {
@@ -177,7 +177,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
                     
                     String imagePath = producto['imagenUrl'] ?? '';
                     if (!imagePath.startsWith('/')) imagePath = '/$imagePath';
-                    final fullImageUrl = "http://$serverIp:8080$imagePath";
+                    final fullImageUrl = "https://api-rentify-production.up.railway.app$imagePath";
 
                     final fechaInicio = item['fechaInicio'].toString().split('T')[0];
                     final fechaFinal = item['fechaFinal'].toString().split('T')[0];

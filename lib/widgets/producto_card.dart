@@ -17,11 +17,11 @@ class ProductoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const Color rentifyPrimary = Color(0xFF6366F1);
     const Color rentifySecondary = Color(0xFF10B981);
-    final String serverIp = "localhost";
+    final String baseUrl = "https://api-rentify-production.up.railway.app";
 
     String imagePath = producto.imagenUrl;
     if (!imagePath.startsWith('/')) imagePath = '/$imagePath';
-    final String fullImageUrl = "http://$serverIp:8080$imagePath";
+    final String fullImageUrl = "$baseUrl$imagePath";
 
     return Card(
       margin: const EdgeInsets.all(10),

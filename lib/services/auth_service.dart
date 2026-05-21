@@ -3,10 +3,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
-  // Asegúrate de que esta IP sea la de tu laptop
-  final String baseUrl = "http://localhost:8080/api/usuarios";
+  final String baseUrl = "https://api-rentify-production.up.railway.app/api/v1/auth";
 
-  // 1. Método de Login
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
       final response = await http.post(
@@ -16,23 +14,22 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final userData = jsonDecode(response.body);
-        
-        // ¡Magia! Guardamos la sesión en el celular
+        final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('usuario_id', userData['id']);
-        await prefs.setString('usuario_nombre', userData['nombre'] ?? '');
-        
-        return {"success": true, "user": userData};
+        await prefs.setString('token', data['token'] ?? '');
+        await prefs.setString('refreshToken', data['refreshToken'] ?? '');
+        await prefs.setInt('usuario_id', data['usuario']['id']);
+        await prefs.setString('usuario_nombre', data['usuario']['nombre'] ?? '');
+        return {"success": true, "user": data['usuario']};
       } else {
-        return {"success": false, "message": response.body};
+        final error = jsonDecode(response.body);
+        return {"success": false, "message": error['message'] ?? 'Error de autenticacion'};
       }
     } catch (e) {
-      return {"success": false, "message": "Error de conexión con el servidor"};
+      return {"success": false, "message": "Error de conexion con el servidor"};
     }
   }
 
-  // 2. Método de Registro
   Future<Map<String, dynamic>> registrar(String username, String password, String nombre, String email) async {
     try {
       final response = await http.post(
@@ -43,29 +40,38 @@ class AuthService {
           "password": password,
           "nombre": nombre,
           "email": email,
-          "rol": "USER" // Por defecto, se registran como clientes
         }),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['token'] ?? '');
+        await prefs.setString('refreshToken', data['refreshToken'] ?? '');
+        await prefs.setInt('usuario_id', data['usuario']['id']);
+        await prefs.setString('usuario_nombre', data['usuario']['nombre'] ?? '');
         return {"success": true};
       } else {
-        return {"success": false, "message": "No se pudo registrar el usuario"};
+        final error = jsonDecode(response.body);
+        return {"success": false, "message": error['message'] ?? 'No se pudo registrar'};
       }
     } catch (e) {
-      return {"success": false, "message": "Error de conexión"};
+      return {"success": false, "message": "Error de conexion"};
     }
   }
 
-  // 3. Método para saber si hay alguien logueado (útil para la pantalla de inicio)
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
   Future<int?> obtenerIdUsuario() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt('usuario_id');
   }
 
-  // 4. Cerrar sesión
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Borra los datos guardados
+    await prefs.clear();
   }
 }
