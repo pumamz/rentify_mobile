@@ -1,5 +1,6 @@
 import '../services/carrito_service.dart';
 import '../services/auth_service.dart';
+import '../services/refresh_notifier.dart';
 import 'package:flutter/material.dart';
 import '../models/producto.dart';
 import '../config/app_config.dart';
@@ -59,6 +60,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
       );
       if (mounted) {
         setState(() { cargando = false; mensaje = 'Agregado al carrito!'; });
+        RefreshNotifier().refreshAll();
         Navigator.pop(context);
       }
     } on HttpException catch (e) {

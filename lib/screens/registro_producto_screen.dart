@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../services/categoria_service.dart';
 import '../services/auth_service.dart';
+import '../services/refresh_notifier.dart';
 import '../models/categoria.dart';
 import '../config/app_config.dart';
 
@@ -49,7 +50,7 @@ class _RegistroProductoScreenState extends State<RegistroProductoScreen> {
     setState(() => _guardando = true);
     try {
       await _api.crearProducto({'nombre': _nombreCtrl.text.trim(), 'descripcion': _descCtrl.text.trim(), 'precio': _precioCtrl.text, 'stockActual': _stockCtrl.text, 'stockMaximo': _stockMaxCtrl.text, 'categoriaId': _catId.toString(), 'propietarioId': uid.toString()}, _imagenes.isNotEmpty ? _imagenes : null);
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Publicado!'), backgroundColor: Colors.green)); Navigator.pop(context, true); }
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Publicado!'), backgroundColor: Colors.green)); RefreshNotifier().refreshAll(); Navigator.pop(context, true); }
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); }
     setState(() => _guardando = false);
   }

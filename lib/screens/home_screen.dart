@@ -5,7 +5,9 @@ import '../services/categoria_service.dart';
 import '../config/app_config.dart';
 import '../widgets/producto_card.dart';
 import '../services/auth_service.dart';
+import '../services/refresh_notifier.dart';
 import 'login_screen.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,9 +21,17 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String> _categorias = [];
   String _search = '', _catFiltro = '';
   bool _loading = true;
+  StreamSubscription? _sub;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _sub = RefreshNotifier().stream.listen((s) { if (s == 'all' || s == 'home') _load(); });
+  }
+
+  @override
+  void dispose() { _sub?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);

@@ -3,6 +3,8 @@ import '../config/app_config.dart';
 import '../services/carrito_service.dart';
 import '../services/renta_service.dart';
 import '../services/auth_service.dart';
+import '../services/refresh_notifier.dart';
+import 'dart:async';
 
 class CarritoScreen extends StatefulWidget {
   const CarritoScreen({super.key});
@@ -16,9 +18,17 @@ class _CarritoScreenState extends State<CarritoScreen> {
   final _auth = AuthService();
   List<dynamic> _items = [];
   bool _loading = true, _checkingOut = false;
+  StreamSubscription? _sub;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _sub = RefreshNotifier().stream.listen((s) { if (s == 'all' || s == 'carrito') _load(); });
+  }
+
+  @override
+  void dispose() { _sub?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -33,7 +43,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
   double get _total => _items.fold(0.0, (s, i) => s + ((i['producto']?['precio'] ?? 0) as num).toDouble());
 
   Future<void> _remove(int id) async {
-    try { await _carrito.eliminarItem(id); _load(); } catch (_) {}
+    try { await _carrito.eliminarItem(id); _load(); RefreshNotifier().refreshAll(); } catch (_) {}
   }
 
   Future<void> _checkout() async {
@@ -44,7 +54,7 @@ class _CarritoScreenState extends State<CarritoScreen> {
     try {
       await _renta.crearRenta({'usuarioId': uid, 'detalles': _items.map((i) => {'productoId': i['producto']['id'], 'precioUnitario': i['producto']['precio'], 'fechaEntregaEsperada': i['fechaFinal'] ?? i['fechaInicio'], 'comentarios': ''}).toList()});
       for (final i in _items) { await _carrito.eliminarItem(i['id']); }
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Renta confirmada!'), backgroundColor: Colors.green)); _load(); }
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Renta confirmada!'), backgroundColor: Colors.green)); RefreshNotifier().refreshAll(); _load(); }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }

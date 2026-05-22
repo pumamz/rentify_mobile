@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'config/app_config.dart';
 import 'services/auth_service.dart';
+import 'services/refresh_notifier.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/mis_rentas_screen.dart';
@@ -22,7 +23,6 @@ class RentifyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Color(AppConfig.primaryColor), brightness: Brightness.light),
-        fontFamily: 'Roboto',
         scaffoldBackgroundColor: Color(AppConfig.bgColor),
       ),
       home: const AuthGate(),
@@ -53,27 +53,35 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     if (!_checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (!_logged) return LoginScreen(onLoginSuccess: _check);
-    return const MainShell();
+    return MainShell(onLogout: _check);
   }
 }
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key});
+  final VoidCallback onLogout;
+  const MainShell({super.key, required this.onLogout});
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
-  final _pages = const [HomeScreen(), MisRentasScreen(), RegistroProductoScreen(), CarritoScreen()];
+
+  void _switchTab(int i) {
+    setState(() => _index = i);
+    RefreshNotifier().refreshAll();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
+      body: IndexedStack(
+        index: _index,
+        children: const [HomeScreen(), MisRentasScreen(), RegistroProductoScreen(), CarritoScreen()],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _switchTab,
         animationDuration: const Duration(milliseconds: 300),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Catalogo'),

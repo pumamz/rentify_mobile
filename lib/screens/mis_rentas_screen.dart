@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/renta.dart';
 import '../config/app_config.dart';
 import '../services/renta_service.dart';
+import '../services/refresh_notifier.dart';
+import 'dart:async';
 
 class MisRentasScreen extends StatefulWidget {
   const MisRentasScreen({super.key});
@@ -14,9 +16,17 @@ class _MisRentasScreenState extends State<MisRentasScreen> {
   List<Renta> _rentas = [];
   bool _loading = true;
   int? _devolviendo;
+  StreamSubscription? _sub;
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+    _sub = RefreshNotifier().stream.listen((s) { if (s == 'all' || s == 'rentas') _load(); });
+  }
+
+  @override
+  void dispose() { _sub?.cancel(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -30,7 +40,7 @@ class _MisRentasScreenState extends State<MisRentasScreen> {
 
   Future<void> _devolver(int id) async {
     setState(() => _devolviendo = id);
-    try { await _renta.devolverProducto(id); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto devuelto!'), backgroundColor: Colors.green)); _load(); }
+    try { await _renta.devolverProducto(id); if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto devuelto!'), backgroundColor: Colors.green)); RefreshNotifier().refreshAll(); } _load(); }
     catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al devolver'), backgroundColor: Colors.red)); }
     setState(() => _devolviendo = null);
   }
