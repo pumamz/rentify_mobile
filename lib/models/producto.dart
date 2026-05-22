@@ -6,6 +6,7 @@ class Producto {
   final int stockActual;
   final int stockMaximo;
   final String imagenUrl;
+  final String categoriaNombre;
 
   Producto({
     required this.id,
@@ -15,6 +16,7 @@ class Producto {
     required this.stockActual,
     required this.stockMaximo,
     required this.imagenUrl,
+    required this.categoriaNombre,
   });
 
   factory Producto.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class Producto {
       stockActual: json['stockActual'] ?? 0,
       stockMaximo: json['stockMaximo'] ?? 0,
       imagenUrl: json['imagenUrl'] ?? '',
+      categoriaNombre: json['categoria']?['nombre'] ?? '',
     );
   }
 }

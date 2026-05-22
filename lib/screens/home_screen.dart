@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _filter() {
     var r = List<Producto>.from(_all);
     if (_search.isNotEmpty) { final t = _search.toLowerCase(); r = r.where((p) => p.nombre.toLowerCase().contains(t) || p.descripcion.toLowerCase().contains(t)).toList(); }
-    if (_catFiltro.isNotEmpty) r = r.where((p) => p.nombre == _catFiltro).toList();
+    if (_catFiltro.isNotEmpty) r = r.where((p) => p.categoriaNombre == _catFiltro).toList();
     setState(() => _filtered = r);
   }
 
