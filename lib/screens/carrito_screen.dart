@@ -11,142 +11,78 @@ class CarritoScreen extends StatefulWidget {
 }
 
 class _CarritoScreenState extends State<CarritoScreen> {
-  final _carritoService = CarritoService();
-  final _rentaService = RentaService();
-  final _authService = AuthService();
-
-  bool _isLoading = true;
-  bool _isProcessingCheckout = false;
-  List<dynamic> _detalles = [];
-  double _totalCarrito = 0.0;
+  final _carrito = CarritoService();
+  final _renta = RentaService();
+  final _auth = AuthService();
+  List<dynamic> _items = [];
+  bool _loading = true, _checkingOut = false;
 
   @override
-  void initState() { super.initState(); _cargarCarrito(); }
+  void initState() { super.initState(); _load(); }
 
-  String getImagenUrl(String? ruta) {
-    if (ruta == null || ruta.isEmpty) return 'https://placehold.co/80x80/6366F1/FFFFFF?text=R';
-    if (ruta.startsWith('http')) return ruta;
-    return '${AppConfig.apiBaseUrl}$ruta';
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final uid = await _auth.obtenerIdUsuario();
+    if (uid == null) { setState(() => _loading = false); return; }
+    try {
+      final data = await _carrito.listarDetalles(uid);
+      setState(() { _items = data; _loading = false; });
+    } catch (_) { setState(() => _loading = false); }
   }
 
-  Future<void> _cargarCarrito() async {
-    setState(() => _isLoading = true);
-    final usuarioId = await _authService.obtenerIdUsuario();
-    if (usuarioId == null) { setState(() => _isLoading = false); return; }
-    try {
-      final detalles = await _carritoService.listarDetalles(usuarioId);
-      double total = 0;
-      for (final d in detalles) {
-        total += (d['producto']?['precio'] ?? 0).toDouble();
-      }
-      setState(() { _detalles = detalles; _totalCarrito = total; });
-    } catch (_) {}
-    setState(() => _isLoading = false);
+  double get _total => _items.fold(0.0, (s, i) => s + ((i['producto']?['precio'] ?? 0) as num).toDouble());
+
+  Future<void> _remove(int id) async {
+    try { await _carrito.eliminarItem(id); _load(); } catch (_) {}
   }
 
-  Future<void> _eliminar(int idDetalle) async {
+  Future<void> _checkout() async {
+    if (_items.isEmpty) return;
+    setState(() => _checkingOut = true);
+    final uid = await _auth.obtenerIdUsuario();
+    if (uid == null) return;
     try {
-      await _carritoService.eliminarItem(idDetalle);
-      _cargarCarrito();
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error al eliminar')));
-    }
-  }
-
-  Future<void> _confirmarRenta() async {
-    if (_detalles.isEmpty) return;
-    setState(() => _isProcessingCheckout = true);
-
-    final usuarioId = await _authService.obtenerIdUsuario();
-    if (usuarioId == null) return;
-
-    final detallesRenta = _detalles.map((item) => {
-      'productoId': item['producto']['id'],
-      'precioUnitario': item['producto']['precio'],
-      'fechaEntregaEsperada': item['fechaFinal'] ?? item['fechaInicio'],
-      'comentarios': '',
-    }).toList();
-
-    try {
-      await _rentaService.crearRenta({
-        'usuarioId': usuarioId,
-        'detalles': detallesRenta,
-      });
-
-      for (final item in _detalles) {
-        await _carritoService.eliminarItem(item['id']);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Renta confirmada!'), backgroundColor: Colors.green),
-        );
-        _cargarCarrito();
-      }
+      await _renta.crearRenta({'usuarioId': uid, 'detalles': _items.map((i) => {'productoId': i['producto']['id'], 'precioUnitario': i['producto']['precio'], 'fechaEntregaEsperada': i['fechaFinal'] ?? i['fechaInicio'], 'comentarios': ''}).toList()});
+      for (final i in _items) { await _carrito.eliminarItem(i['id']); }
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Renta confirmada!'), backgroundColor: Colors.green)); _load(); }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
-    setState(() => _isProcessingCheckout = false);
+    setState(() => _checkingOut = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final primary = Color(AppConfig.primaryColor);
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi Carrito'), backgroundColor: Colors.white),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _detalles.isEmpty
-              ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('Carrito vacio', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                ]))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(15),
-                  itemCount: _detalles.length,
-                  itemBuilder: (context, index) {
-                    final item = _detalles[index];
-                    final producto = item['producto'];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(children: [
-                          ClipRRect(borderRadius: BorderRadius.circular(8),
-                            child: Image.network(getImagenUrl(producto?['imagenUrl']), width: 70, height: 70, fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.image, size: 40, color: Colors.grey))),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(producto?['nombre'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                            const SizedBox(height: 4),
-                            Text('\$${producto?['precio']} / dia', style: TextStyle(color: primary, fontWeight: FontWeight.w600)),
-                          ])),
-                          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _eliminar(item['id'])),
-                        ]),
-                      ),
-                    );
-                  },
-                ),
-      bottomNavigationBar: _detalles.isEmpty || _isLoading ? null : Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-        child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('\$${_totalCarrito.toStringAsFixed(2)}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary)),
-          ]),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: primary, foregroundColor: Colors.white),
-              onPressed: _isProcessingCheckout ? null : _confirmarRenta,
-              child: _isProcessingCheckout
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Confirmar Renta', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-            )),
-        ])),
-      ),
+      appBar: AppBar(title: const Text('Carrito')),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : _items.isEmpty
+          ? const Center(child: Text('Carrito vacio', style: TextStyle(color: Colors.grey, fontSize: 15)))
+          : Column(children: [
+              Expanded(child: RefreshIndicator(onRefresh: _load, child: ListView.builder(padding: const EdgeInsets.all(12), itemCount: _items.length, itemBuilder: (_, i) {
+                final item = _items[i];
+                final p = item['producto'];
+                return Card(margin: const EdgeInsets.only(bottom: 8), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
+                  child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+                    ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(width: 56, height: 56, color: Color(AppConfig.bgColor), child: Image.network('${AppConfig.apiBaseUrl}${p?['imagenUrl'] ?? ''}', fit: BoxFit.contain, errorBuilder: (_, __, ___) => const Icon(Icons.image, color: Colors.grey, size: 30)))),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(p?['nombre'] ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      const SizedBox(height: 2),
+                      Text('\$${p?['precio']}/dia', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: primary)),
+                    ])),
+                    IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () => _remove(item['id'])),
+                  ])),
+                );
+              }))),
+              Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))]),
+                child: SafeArea(child: Column(children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text('\$${_total.toStringAsFixed(2)}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primary))]),
+                  const SizedBox(height: 12),
+                  SizedBox(width: double.infinity, height: 50, child: FilledButton(onPressed: _checkingOut ? null : _checkout, style: FilledButton.styleFrom(backgroundColor: primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: _checkingOut ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Confirmar Renta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)))),
+                ])),
+              ),
+            ]),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'registro_screen.dart';
 import '../services/auth_service.dart';
+import '../config/app_config.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
@@ -11,162 +12,61 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
+  final _form = GlobalKey<FormState>();
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  final _auth = AuthService();
+  bool _loading = false;
 
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-
-  Future<void> _iniciarSesion() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    // Llamamos a tu API en Spring Boot
-    final result = await _authService.login(
-      _usernameController.text.trim(),
-      _passwordController.text.trim(),
-    );
-
+  Future<void> _login() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() => _loading = true);
+    final r = await _auth.login(_userCtrl.text.trim(), _passCtrl.text);
     if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (result['success']) {
-      // Login exitoso
+    setState(() => _loading = false);
+    if (r['success'] == true) {
       widget.onLoginSuccess?.call();
     } else {
-      // Mostramos el error si la clave está mal o el usuario no existe
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Error al iniciar sesión'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(r['message'] ?? 'Error'), backgroundColor: Colors.red));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color rentifyPrimary = Color(0xFF6366F1);
-
+    final primary = Color(AppConfig.primaryColor);
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(30.0),
+            padding: const EdgeInsets.all(24),
             child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                // Logo o Título
-                const Icon(
-                  Icons.handshake_outlined,
-                  size: 80,
-                  color: rentifyPrimary,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  "Bienvenido a Rentify",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: rentifyPrimary,
-                  ),
-                ),
+              key: _form,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
                 const SizedBox(height: 40),
-
-                // Campo de Usuario
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: "Usuario",
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "Por favor, ingresa tu usuario";
-                    }
-                    return null;
-                  },
-                ),
+                Container(width: 64, height: 64, decoration: BoxDecoration(color: primary.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+                  child: Icon(Icons.construction, size: 32, color: primary)),
+                const SizedBox(height: 16),
+                const Text('Rentify', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text('Renta herramientas profesionales', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                const SizedBox(height: 40),
+                TextFormField(controller: _userCtrl, decoration: InputDecoration(labelText: 'Usuario', prefixIcon: const Icon(Icons.person), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null),
+                const SizedBox(height: 16),
+                TextFormField(controller: _passCtrl, obscureText: true, decoration: InputDecoration(labelText: 'Contraseña', prefixIcon: const Icon(Icons.lock), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), validator: (v) => v == null || v.isEmpty ? 'Requerido' : null),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: Text('admin / admin123', style: TextStyle(color: Colors.grey.shade400, fontSize: 12))),
                 const SizedBox(height: 20),
-
-                // Campo de Contraseña
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: "Contraseña",
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "Por favor, ingresa tu contraseña";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 30),
-
-                // Botón de Login
-                SizedBox(
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _iniciarSesion,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: rentifyPrimary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            "Iniciar Sesión",
-                            style: TextStyle(fontSize: 18),
-                          ),
-                  ),
-                ),
+                SizedBox(width: double.infinity, height: 50,
+                  child: FilledButton(onPressed: _loading ? null : _login,
+                    style: FilledButton.styleFrom(backgroundColor: primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                    child: _loading ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Ingresar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)))),
                 const SizedBox(height: 20),
-
-                // Botón para ir a Registro
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RegistroScreen(),
-                      ),
-                    );
-                  },
-                  child: const Text("¿No tienes cuenta? Regístrate aquí"),
-                ),
-              ],
-              ),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Text('No tienes cuenta? '),
+                  GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RegistroScreen(onRegistroSuccess: widget.onLoginSuccess))),
+                    child: Text('Registrate', style: TextStyle(color: primary, fontWeight: FontWeight.w600))),
+                ]),
+              ]),
             ),
           ),
         ),

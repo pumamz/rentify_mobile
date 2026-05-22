@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/producto.dart';
-import '../models/categoria.dart';
-import '../config/app_config.dart';
 import '../services/api_service.dart';
 import '../services/categoria_service.dart';
+import '../config/app_config.dart';
 import '../widgets/producto_card.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,83 +14,69 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _apiService = ApiService();
-  final _catService = CategoriaService();
-  List<Producto> _productos = [];
-  List<Producto> _filtrados = [];
-  List<Categoria> _categorias = [];
-  bool _isLoading = true;
-  String _search = '';
-  String? _categoriaFiltro;
+  final _api = ApiService(); final _cat = CategoriaService();
+  List<Producto> _all = [], _filtered = [];
+  List<String> _categorias = [];
+  String _search = '', _catFiltro = '';
+  bool _loading = true;
 
   @override
-  void initState() {
-    super.initState();
-    _cargar();
-  }
+  void initState() { super.initState(); _load(); }
 
-  Future<void> _cargar() async {
-    setState(() => _isLoading = true);
+  Future<void> _load() async {
+    setState(() => _loading = true);
     try {
-      final cats = await _catService.listarCategorias();
-      final prods = await _apiService.getProductos(size: 100);
-      setState(() { _categorias = cats; _productos = prods; _isLoading = false; });
-      _aplicarFiltros();
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
+      final cats = await _cat.listarCategorias(size: 50);
+      final prods = await _api.getProductos(size: 200);
+      setState(() { _all = prods; _categorias = cats.map((c) => c.nombre).toList(); _loading = false; });
+      _filter();
+    } catch (_) { setState(() => _loading = false); }
   }
 
-  void _aplicarFiltros() {
-    var result = List<Producto>.from(_productos);
-    if (_search.isNotEmpty) {
-      final term = _search.toLowerCase();
-      result = result.where((p) => p.nombre.toLowerCase().contains(term) || p.descripcion.toLowerCase().contains(term)).toList();
-    }
-    if (_categoriaFiltro != null) {
-      result = result.where((p) => p.nombre == _categoriaFiltro).toList();
-    }
-    setState(() => _filtrados = result);
+  void _filter() {
+    var r = List<Producto>.from(_all);
+    if (_search.isNotEmpty) { final t = _search.toLowerCase(); r = r.where((p) => p.nombre.toLowerCase().contains(t) || p.descripcion.toLowerCase().contains(t)).toList(); }
+    if (_catFiltro.isNotEmpty) r = r.where((p) => p.nombre == _catFiltro).toList();
+    setState(() => _filtered = r);
+  }
+
+  List<DropdownMenuItem<String>> _buildCatItems() {
+    final items = <DropdownMenuItem<String>>[const DropdownMenuItem(value: '', child: Text('Todas', style: TextStyle(fontSize: 13)))];
+    for (final c in _categorias) { items.add(DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 13)))); }
+    return items;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rentify'), centerTitle: true),
+      appBar: AppBar(title: const Text('Rentify'), centerTitle: true,
+        actions: [IconButton(icon: const Icon(Icons.logout), tooltip: 'Salir', onPressed: () async {
+          await AuthService().logout();
+          if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+        })]),
       body: Column(children: [
-        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
           Expanded(child: TextField(
-            decoration: InputDecoration(hintText: 'Buscar herramienta...', prefixIcon: const Icon(Icons.search),
-              filled: true, fillColor: Color(AppConfig.bgColor), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-            onChanged: (v) { _search = v; _aplicarFiltros(); },
+            decoration: InputDecoration(hintText: 'Buscar...', prefixIcon: const Icon(Icons.search, size: 20),
+              filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), isDense: true),
+            onChanged: (v) { _search = v; _filter(); },
           )),
           const SizedBox(width: 8),
-          Container(
-            decoration: BoxDecoration(color: Color(AppConfig.bgColor), borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: DropdownButton<String?>(
-              value: _categoriaFiltro,
-              hint: const Text('Todas'),
-              underline: const SizedBox(),
-              items: [const DropdownMenuItem(value: null, child: Text('Todas')), ..._categorias.map((c) => DropdownMenuItem(value: c.nombre, child: Text(c.nombre)))],
-              onChanged: (v) { _categoriaFiltro = v; _aplicarFiltros(); },
-            ),
-          ),
+          SizedBox(width: 130, child: DropdownButtonFormField<String>(
+            value: _catFiltro.isEmpty ? null : _catFiltro,
+            decoration: InputDecoration(filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), isDense: true),
+            hint: const Text('Todas', style: TextStyle(fontSize: 13)),
+            items: _buildCatItems(),
+            onChanged: (v) { _catFiltro = v ?? ''; _filter(); },
+          )),
         ])),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _cargar,
-                  child: _filtrados.isEmpty
-                      ? ListView(children: const [SizedBox(height: 120), Center(child: Text('Sin resultados', style: TextStyle(color: Colors.grey, fontSize: 16)))])
-                      : ListView.builder(
-                          itemCount: _filtrados.length,
-                          itemBuilder: (_, i) => ProductoCard(producto: _filtrados[i], onRefresh: _cargar),
-                        ),
-                ),
-        ),
+        Expanded(child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(onRefresh: _load,
+                child: _filtered.isEmpty
+                    ? ListView(children: const [SizedBox(height: 100), Center(child: Text('Sin resultados', style: TextStyle(color: Colors.grey, fontSize: 15)))])
+                    : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _filtered.length, itemBuilder: (_, i) => ProductoCard(producto: _filtered[i], onRefresh: _load)))),
       ]),
     );
   }

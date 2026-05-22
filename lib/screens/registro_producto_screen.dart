@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/categoria.dart';
-import '../config/app_config.dart';
 import '../services/api_service.dart';
 import '../services/categoria_service.dart';
 import '../services/auth_service.dart';
+import '../models/categoria.dart';
+import '../config/app_config.dart';
 
 class RegistroProductoScreen extends StatefulWidget {
   const RegistroProductoScreen({super.key});
@@ -14,132 +14,75 @@ class RegistroProductoScreen extends StatefulWidget {
 }
 
 class _RegistroProductoScreenState extends State<RegistroProductoScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _apiService = ApiService();
-  final _catService = CategoriaService();
-  final _authService = AuthService();
+  final _form = GlobalKey<FormState>();
+  final _api = ApiService();
+  final _cat = CategoriaService();
+  final _auth = AuthService();
   final _picker = ImagePicker();
-
-  List<Categoria> _categorias = [];
-  List<File> _imagenes = [];
-  bool _guardando = false;
-
   final _nombreCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _precioCtrl = TextEditingController(text: '0');
-  final _stockActualCtrl = TextEditingController(text: '1');
-  final _stockMaximoCtrl = TextEditingController(text: '1');
-  int? _categoriaId;
+  final _precioCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController();
+  final _stockMaxCtrl = TextEditingController();
+
+  List<Categoria> _categorias = [];
+  int? _catId;
+  List<File> _imagenes = [];
+  bool _loading = true, _guardando = false;
 
   @override
-  void initState() {
-    super.initState();
-    _cargarCategorias();
+  void initState() { super.initState(); _loadCats(); }
+
+  Future<void> _loadCats() async {
+    try { final c = await _cat.listarCategorias(size: 50); setState(() { _categorias = c; _loading = false; }); } catch (_) { setState(() => _loading = false); }
   }
 
-  Future<void> _cargarCategorias() async {
-    try {
-      final cats = await _catService.listarCategorias();
-      setState(() => _categorias = cats);
-    } catch (_) {}
-  }
-
-  Future<void> _pickImagenes() async {
+  Future<void> _pick() async {
     final files = await _picker.pickMultiImage(imageQuality: 80);
-    if (files.isNotEmpty) {
-      setState(() => _imagenes = files.map((f) => File(f.path)).toList());
-    }
+    if (files.isNotEmpty) setState(() => _imagenes = files.map((f) => File(f.path)).toList());
   }
 
   Future<void> _publicar() async {
-    if (!_formKey.currentState!.validate() || _categoriaId == null) return;
-
-    final usuarioId = await _authService.obtenerIdUsuario();
-    if (usuarioId == null) return;
-
+    if (!_form.currentState!.validate() || _catId == null) return;
+    final uid = await _auth.obtenerIdUsuario();
+    if (uid == null) return;
     setState(() => _guardando = true);
     try {
-      final fields = {
-        'nombre': _nombreCtrl.text.trim(),
-        'descripcion': _descCtrl.text.trim(),
-        'precio': double.parse(_precioCtrl.text).toString(),
-        'stockActual': _stockActualCtrl.text,
-        'stockMaximo': _stockMaximoCtrl.text,
-        'categoriaId': _categoriaId.toString(),
-        'propietarioId': usuarioId.toString(),
-      };
-
-      if (_imagenes.isNotEmpty) {
-        await _apiService.crearProducto(fields, _imagenes);
-      } else {
-        await _apiService.crearProducto(fields, null);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Producto publicado!'), backgroundColor: Colors.green));
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-    }
+      await _api.crearProducto({'nombre': _nombreCtrl.text.trim(), 'descripcion': _descCtrl.text.trim(), 'precio': _precioCtrl.text, 'stockActual': _stockCtrl.text, 'stockMaximo': _stockMaxCtrl.text, 'categoriaId': _catId.toString(), 'propietarioId': uid.toString()}, _imagenes.isNotEmpty ? _imagenes : null);
+      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Publicado!'), backgroundColor: Colors.green)); Navigator.pop(context, true); }
+    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); }
     setState(() => _guardando = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    final primary = Color(AppConfig.primaryColor);
     return Scaffold(
       appBar: AppBar(title: const Text('Publicar Articulo')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(key: _formKey, child: Column(children: [
-          TextFormField(controller: _nombreCtrl, decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder()),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null),
-          const SizedBox(height: 12),
-          TextFormField(controller: _descCtrl, decoration: const InputDecoration(labelText: 'Descripcion', border: OutlineInputBorder()), maxLines: 2,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null),
-          const SizedBox(height: 12),
-          TextFormField(controller: _precioCtrl, decoration: const InputDecoration(labelText: 'Precio por dia', border: OutlineInputBorder(), prefixText: '\$ '),
-            keyboardType: TextInputType.number, validator: (v) => v == null || double.tryParse(v) == null ? 'Invalido' : null),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: TextFormField(controller: _stockActualCtrl, decoration: const InputDecoration(labelText: 'Stock Actual', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
-            const SizedBox(width: 12),
-            Expanded(child: TextFormField(controller: _stockMaximoCtrl, decoration: const InputDecoration(labelText: 'Stock Maximo', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
-          ]),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            value: _categoriaId,
-            decoration: const InputDecoration(labelText: 'Categoria', border: OutlineInputBorder()),
-            items: _categorias.map((c) => DropdownMenuItem(value: c.id, child: Text(c.nombre))).toList(),
-            onChanged: (v) => setState(() => _categoriaId = v),
-            validator: (v) => v == null ? 'Selecciona una categoria' : null,
-          ),
-          const SizedBox(height: 16),
-          InkWell(onTap: _pickImagenes, child: Container(
-            width: double.infinity, padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(12), color: Color(AppConfig.bgColor)),
-            child: Column(children: [
-              const Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey),
-              const SizedBox(height: 8),
-              Text(_imagenes.isEmpty ? 'Toca para seleccionar imagenes' : '${_imagenes.length} imagen(es) seleccionada(s)',
-                  style: const TextStyle(color: Colors.grey)),
-            ]),
-          )),
-          if (_imagenes.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SizedBox(height: 80, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _imagenes.length, itemBuilder: (_, i) {
-              return Padding(padding: const EdgeInsets.only(right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_imagenes[i], width: 80, height: 80, fit: BoxFit.cover)));
-            })),
-          ],
-          const SizedBox(height: 24),
-          SizedBox(width: double.infinity, height: 48,
-            child: ElevatedButton(
-              onPressed: _guardando ? null : _publicar,
-              style: ElevatedButton.styleFrom(backgroundColor: Color(AppConfig.primaryColor), foregroundColor: Colors.white),
-              child: _guardando ? const CircularProgressIndicator(color: Colors.white) : const Text('Publicar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            )),
-        ])),
-      ),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(padding: const EdgeInsets.all(16), child: Form(key: _form, child: Column(children: [
+        TextFormField(controller: _nombreCtrl, decoration: InputDecoration(labelText: 'Nombre', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null),
+        const SizedBox(height: 12),
+        TextFormField(controller: _descCtrl, maxLines: 2, decoration: InputDecoration(labelText: 'Descripcion', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: TextFormField(controller: _precioCtrl, decoration: InputDecoration(labelText: 'Precio/dia', prefixText: '\$ ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), keyboardType: TextInputType.number, validator: (v) => v == null || double.tryParse(v) == null ? 'Invalido' : null)),
+          const SizedBox(width: 12),
+          Expanded(child: TextFormField(controller: _stockCtrl, decoration: InputDecoration(labelText: 'Stock', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), keyboardType: TextInputType.number)),
+        ]),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<int>(value: _catId, decoration: InputDecoration(labelText: 'Categoria', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), items: _categorias.map((c) => DropdownMenuItem(value: c.id, child: Text(c.nombre))).toList(), onChanged: (v) => setState(() => _catId = v), validator: (v) => v == null ? 'Requerido' : null),
+        const SizedBox(height: 16),
+        InkWell(onTap: _pick, child: Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)), child: Column(children: [Icon(Icons.add_photo_alternate, size: 36, color: Colors.grey.shade400), const SizedBox(height: 6), Text(_imagenes.isEmpty ? 'Toca para fotos' : '${_imagenes.length} foto(s)', style: TextStyle(color: Colors.grey.shade500))]))),
+        if (_imagenes.isNotEmpty) SizedBox(height: 100, child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _imagenes.length, itemBuilder: (_, i) => Padding(padding: const EdgeInsets.only(right: 6, top: 8), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(_imagenes[i], width: 90, height: 90, fit: BoxFit.cover))))),
+        const SizedBox(height: 24),
+        SizedBox(width: double.infinity, height: 50, child: FilledButton(onPressed: _guardando ? null : _publicar, style: FilledButton.styleFrom(backgroundColor: primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: _guardando ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Publicar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)))),
+      ]))),
     );
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose(); _descCtrl.dispose(); _precioCtrl.dispose(); _stockCtrl.dispose(); _stockMaxCtrl.dispose();
+    super.dispose();
   }
 }

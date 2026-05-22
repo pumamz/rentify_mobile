@@ -5,8 +5,6 @@ import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/mis_rentas_screen.dart';
 import 'screens/registro_producto_screen.dart';
-import 'screens/admin_productos_screen.dart';
-import 'screens/admin_categorias_screen.dart';
 import 'screens/carrito_screen.dart';
 
 void main() {
@@ -16,7 +14,6 @@ void main() {
 
 class RentifyApp extends StatelessWidget {
   const RentifyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -24,9 +21,9 @@ class RentifyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorSchemeSeed: Color(AppConfig.primaryColor),
-        brightness: Brightness.light,
+        colorScheme: ColorScheme.fromSeed(seedColor: Color(AppConfig.primaryColor), brightness: Brightness.light),
         fontFamily: 'Roboto',
+        scaffoldBackgroundColor: Color(AppConfig.bgColor),
       ),
       home: const AuthGate(),
     );
@@ -40,90 +37,49 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final _authService = AuthService();
-  bool _isLoggedIn = false;
-  bool _isAdmin = false;
-  bool _checked = false;
+  final _auth = AuthService();
+  bool _logged = false, _checked = false;
 
   @override
-  void initState() {
-    super.initState();
-    _checkAuth();
-  }
+  void initState() { super.initState(); _check(); }
 
-  Future<void> _checkAuth() async {
-    final logged = await _authService.isLoggedIn();
-    final admin = await _authService.isAdmin();
-    setState(() { _isLoggedIn = logged; _isAdmin = admin; _checked = true; });
+  Future<void> _check() async {
+    setState(() { _logged = false; _checked = false; });
+    final ok = await _auth.isLoggedIn();
+    setState(() { _logged = ok; _checked = true; });
   }
-
-  void _onAuthChanged() => _checkAuth();
 
   @override
   Widget build(BuildContext context) {
-    if (!_checked) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (!_isLoggedIn) {
-      return LoginScreen(onLoginSuccess: _onAuthChanged);
-    }
-    return MainShell(isAdmin: _isAdmin, onLogout: () { _authService.logout(); _onAuthChanged(); });
+    if (!_checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!_logged) return LoginScreen(onLoginSuccess: _check);
+    return const MainShell();
   }
 }
 
 class MainShell extends StatefulWidget {
-  final bool isAdmin;
-  final VoidCallback onLogout;
-  const MainShell({super.key, required this.isAdmin, required this.onLogout});
-
+  const MainShell({super.key});
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
+  int _index = 0;
+  final _pages = const [HomeScreen(), MisRentasScreen(), RegistroProductoScreen(), CarritoScreen()];
 
   @override
   Widget build(BuildContext context) {
-    final tabs = <Widget>[
-      const HomeScreen(),
-      const MisRentasScreen(),
-      const RegistroProductoScreen(),
-      const CarritoScreen(),
-    ];
-
-    final adminTabs = <String>['Catalogo', 'Admin Prod', 'Admin Cat', 'Publicar'];
-
-    if (widget.isAdmin) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Rentify Admin'),
-          actions: [IconButton(icon: const Icon(Icons.logout), onPressed: widget.onLogout)],
-        ),
-        body: IndexedStack(index: _currentIndex, children: [
-          const HomeScreen(),
-          const AdminProductosScreen(),
-          const AdminCategoriasScreen(),
-          const RegistroProductoScreen(),
-        ]),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (i) => setState(() => _currentIndex = i),
-          destinations: adminTabs.map((t) => NavigationDestination(icon: const Icon(Icons.build), label: t)).toList(),
-        ),
-      );
-    }
-
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: tabs),
+      body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (i) => setState(() => _currentIndex = i),
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        animationDuration: const Duration(milliseconds: 300),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Catalogo'),
-          NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Mis Rentas'),
-          NavigationDestination(icon: Icon(Icons.add_circle_outline), label: 'Publicar'),
-          NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Carrito'),
+          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Catalogo'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Mis Rentas'),
+          NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle), label: 'Publicar'),
+          NavigationDestination(icon: Icon(Icons.shopping_cart_outlined), selectedIcon: Icon(Icons.shopping_cart), label: 'Carrito'),
         ],
       ),
     );
