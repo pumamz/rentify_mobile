@@ -44,8 +44,8 @@ class _AuthGateState extends State<AuthGate> {
   void initState() { super.initState(); _check(); }
 
   Future<void> _check() async {
-    setState(() { _logged = false; _checked = false; });
     final ok = await _auth.isLoggedIn();
+    if (!mounted) return;
     setState(() { _logged = ok; _checked = true; });
   }
 
