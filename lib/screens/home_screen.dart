@@ -1,120 +1,96 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../services/auth_service.dart';
 import '../models/producto.dart';
+import '../models/categoria.dart';
+import '../config/app_config.dart';
+import '../services/api_service.dart';
+import '../services/categoria_service.dart';
 import '../widgets/producto_card.dart';
-import 'login_screen.dart';
-import 'carrito_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final ApiService _apiService = ApiService();
-  late Future<List<Producto>> _productosFuture;
+  final _apiService = ApiService();
+  final _catService = CategoriaService();
+  List<Producto> _productos = [];
+  List<Producto> _filtrados = [];
+  List<Categoria> _categorias = [];
+  bool _isLoading = true;
+  String _search = '';
+  String? _categoriaFiltro;
 
   @override
   void initState() {
     super.initState();
-    _refreshProductos(); 
+    _cargar();
   }
 
-  Future<void> _refreshProductos() async {
-    setState(() {
-      _productosFuture = _apiService.getProductos();
-    });
+  Future<void> _cargar() async {
+    setState(() => _isLoading = true);
+    try {
+      final cats = await _catService.listarCategorias();
+      final prods = await _apiService.getProductos(size: 100);
+      setState(() { _categorias = cats; _productos = prods; _isLoading = false; });
+      _aplicarFiltros();
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _aplicarFiltros() {
+    var result = List<Producto>.from(_productos);
+    if (_search.isNotEmpty) {
+      final term = _search.toLowerCase();
+      result = result.where((p) => p.nombre.toLowerCase().contains(term) || p.descripcion.toLowerCase().contains(term)).toList();
+    }
+    if (_categoriaFiltro != null) {
+      result = result.where((p) => p.nombre == _categoriaFiltro).toList();
+    }
+    setState(() => _filtrados = result);
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color rentifyPrimary = Color(0xFF6366F1);
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Catálogo Rentify", style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined), 
-            onPressed: () async {
-              final cambios = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CarritoScreen()),
-              );
-              
-              if (cambios == true) {
-                _refreshProductos();
-              }
-            }
+      appBar: AppBar(title: const Text('Rentify'), centerTitle: true),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          Expanded(child: TextField(
+            decoration: InputDecoration(hintText: 'Buscar herramienta...', prefixIcon: const Icon(Icons.search),
+              filled: true, fillColor: Color(AppConfig.bgColor), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+            onChanged: (v) { _search = v; _aplicarFiltros(); },
+          )),
+          const SizedBox(width: 8),
+          Container(
+            decoration: BoxDecoration(color: Color(AppConfig.bgColor), borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: DropdownButton<String?>(
+              value: _categoriaFiltro,
+              hint: const Text('Todas'),
+              underline: const SizedBox(),
+              items: [const DropdownMenuItem(value: null, child: Text('Todas')), ..._categorias.map((c) => DropdownMenuItem(value: c.nombre, child: Text(c.nombre)))],
+              onChanged: (v) { _categoriaFiltro = v; _aplicarFiltros(); },
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () async {
-              await AuthService().logout(); 
-              if (!context.mounted) return;
-              
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (Route<dynamic> route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshProductos,
-        color: rentifyPrimary,
-        child: FutureBuilder<List<Producto>>(
-          future: _productosFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return ListView(
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.4,
-                    child: Center(child: Text("Error: ${snapshot.error}")),
-                  ),
-                ],
-              );
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return ListView(
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.4,
-                    child: const Center(child: Text("No hay productos disponibles")),
-                  ),
-                ],
-              );
-            } else {
-              return ListView.builder(
-                padding: const EdgeInsets.only(bottom: 80), 
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final producto = snapshot.data![index];
-                  return ProductoCard(
-                    producto: producto,
-                    onRefresh: _refreshProductos, 
-                  );
-                },
-              );
-            }
-          },
+        ])),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _cargar,
+                  child: _filtrados.isEmpty
+                      ? ListView(children: const [SizedBox(height: 120), Center(child: Text('Sin resultados', style: TextStyle(color: Colors.grey, fontSize: 16)))])
+                      : ListView.builder(
+                          itemCount: _filtrados.length,
+                          itemBuilder: (_, i) => ProductoCard(producto: _filtrados[i], onRefresh: _cargar),
+                        ),
+                ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: rentifyPrimary,
-        child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () {
-          // Aquí navegarías a la pantalla de agregar producto en el futuro
-        }, 
-      ),
+      ]),
     );
   }
 }

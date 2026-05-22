@@ -1,30 +1,31 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/producto.dart';
+import 'http_client_service.dart';
 
 class ApiService {
-  final String baseUrl = "https://api-rentify-production.up.railway.app/api/v1";
+  final _http = HttpClientService();
 
-  Future<List<Producto>> getProductos() async {
-    final response = await http.get(Uri.parse('$baseUrl/productos'));
+  Future<List<Producto>> getProductos({int page = 0, int size = 100}) async {
+    final data = await _http.get('/productos?page=$page&size=$size', auth: false);
+    final List<dynamic> items = data['content'] ?? [];
+    return items.map((item) => Producto.fromJson(item)).toList();
+  }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      List<dynamic> items = data['content'] ?? [];
-      return items.map((item) => Producto.fromJson(item)).toList();
+  Future<Producto> getProductoPorId(int id) async {
+    final data = await _http.get('/productos/$id', auth: false);
+    return Producto.fromJson(data);
+  }
+
+  Future<void> crearProducto(Map<String, dynamic> fields, List<dynamic>? files) async {
+    if (files != null && files.isNotEmpty) {
+      final stringFields = fields.map((k, v) => MapEntry(k, v.toString()));
+      await _http.postMultipart('/productos', stringFields, files.cast(), auth: true);
     } else {
-      throw Exception("Error al conectar con la API: ${response.statusCode}");
+      final stringFields = fields.map((k, v) => MapEntry(k, v.toString()));
+      await _http.post('/productos', stringFields, auth: true);
     }
   }
 
-  Future<void> crearProducto(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/productos'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(data),
-    );
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception("Error al crear producto");
-    }
+  Future<void> actualizarProducto(int id, Map<String, dynamic> data) async {
+    await _http.put('/productos/$id', data, auth: true);
   }
 }

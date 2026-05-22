@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'registro_screen.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart'; // Asegúrate de que esta ruta sea correcta
-// import 'registro_screen.dart'; // Lo usaremos en el siguiente paso
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback? onLoginSuccess;
+  const LoginScreen({super.key, this.onLoginSuccess});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -37,11 +36,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (result['success']) {
-      // ¡Login exitoso! Vamos al catálogo
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+      // Login exitoso
+      widget.onLoginSuccess?.call();
     } else {
       // Mostramos el error si la clave está mal o el usuario no existe
       ScaffoldMessenger.of(context).showSnackBar(
