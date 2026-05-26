@@ -6,7 +6,6 @@ import '../config/app_config.dart';
 import '../widgets/producto_card.dart';
 import '../services/auth_service.dart';
 import '../services/refresh_notifier.dart';
-import 'login_screen.dart';
 import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
@@ -62,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: const Text('Rentify'), centerTitle: true,
         actions: [IconButton(icon: const Icon(Icons.logout), tooltip: 'Salir', onPressed: () async {
           await AuthService().logout();
-          if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+          RefreshNotifier().triggerLogout();
         })]),
       body: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
@@ -73,7 +72,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onChanged: (v) { _search = v; _filter(); },
           )),
           const SizedBox(width: 8),
-          SizedBox(width: 130, child: DropdownButtonFormField<String>(
+          SizedBox(width: 150, child: DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _catFiltro.isEmpty ? null : _catFiltro,
             decoration: InputDecoration(filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), isDense: true),
             hint: const Text('Todas', style: TextStyle(fontSize: 13)),

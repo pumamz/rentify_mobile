@@ -10,5 +10,6 @@ class RefreshNotifier {
 
   void refresh(String screen) => _controller.add(screen);
   void refreshAll() => _controller.add('all');
+  void triggerLogout() => _controller.add('logout');
   void dispose() => _controller.close();
 }

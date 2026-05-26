@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'config/app_config.dart';
 import 'services/auth_service.dart';
@@ -39,9 +40,19 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   final _auth = AuthService();
   bool _logged = false, _checked = false;
+  StreamSubscription? _sub;
 
   @override
-  void initState() { super.initState(); _check(); }
+  void initState() {
+    super.initState();
+    _check();
+    _sub = RefreshNotifier().stream.listen((s) {
+      if (s == 'logout' && mounted) _check();
+    });
+  }
+
+  @override
+  void dispose() { _sub?.cancel(); super.dispose(); }
 
   Future<void> _check() async {
     final ok = await _auth.isLoggedIn();
@@ -53,13 +64,12 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     if (!_checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (!_logged) return LoginScreen(onLoginSuccess: _check);
-    return MainShell(onLogout: _check);
+    return const MainShell();
   }
 }
 
 class MainShell extends StatefulWidget {
-  final VoidCallback onLogout;
-  const MainShell({super.key, required this.onLogout});
+  const MainShell({super.key});
   @override
   State<MainShell> createState() => _MainShellState();
 }
